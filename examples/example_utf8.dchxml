@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Source Type="DipTrace-Schematic" Version="5.3">
+<Library><Components><Component ComponentStyle="0"><Name>RES_0805</Name><Part PartType="Normal"/></Component><Component ComponentStyle="1"><Name>NetPort</Name><Part PartType="Net Port"/></Component><Component ComponentStyle="2"><Name>LM358</Name><Part PartType="Normal"/><Part PartType="Normal"/><Part PartType="Power"/></Component></Components></Library>
+<Schematic><Components>
+    <Part ComponentStyle="0" ComponentPart="0" X="1" Y="2">
+      <RefDes>R1</RefDes>
+      <Value>10k</Value>
+    </Part>
+    <Part ComponentStyle="0" ComponentPart="0" X="1" Y="2">
+      <RefDes>R3</RefDes>
+      <Value>10k</Value>
+    </Part>
+    <Part ComponentStyle="0" ComponentPart="0" X="1" Y="2">
+      <RefDes>R7</RefDes>
+      <Value>10k</Value>
+    </Part>
+    <Part ComponentStyle="0" ComponentPart="0" X="1" Y="2">
+      <RefDes>R12</RefDes>
+      <Value>10k</Value>
+    </Part>
+    <Part ComponentStyle="0" ComponentPart="0" X="1" Y="2">
+      <RefDes>R01</RefDes>
+      <Value>10k</Value>
+    </Part>
+    <Part ComponentStyle="0" ComponentPart="0" X="1" Y="2">
+      <RefDes> R20 </RefDes>
+      <Value>10k</Value>
+    </Part>
+    <Part ComponentStyle="0" ComponentPart="0" X="1" Y="2">
+      <RefDes>С2</RefDes>
+      <Value>Ёмкость; "керамика"</Value>
+    </Part>
+    <Part ComponentStyle="0" ComponentPart="0" X="1" Y="2">
+      <RefDes>С5</RefDes>
+      <Value>Ёмкость; "керамика"</Value>
+    </Part>
+    <Part ComponentStyle="0" ComponentPart="0" X="1" Y="2">
+      <RefDes>C1</RefDes>
+      <Value>100n</Value>
+    </Part>
+    <Part ComponentStyle="0" ComponentPart="0" X="1" Y="2">
+      <RefDes>C4</RefDes>
+      <Value>100n</Value>
+    </Part>
+    <Part ComponentStyle="2" ComponentPart="0" X="1" Y="2">
+      <RefDes>DA4</RefDes>
+      <Value>LM358</Value>
+    </Part>
+    <Part ComponentStyle="2" ComponentPart="1" X="1" Y="2">
+      <RefDes>DA4</RefDes>
+      <Value>LM358</Value>
+    </Part>
+    <Part ComponentStyle="2" ComponentPart="2" X="1" Y="2">
+      <RefDes>DA4</RefDes>
+      <Value>LM358</Value>
+    </Part>
+    <Part ComponentStyle="2" ComponentPart="0" X="1" Y="2">
+      <RefDes>DA9</RefDes>
+      <Value>LM358</Value>
+    </Part>
+    <Part ComponentStyle="1" ComponentPart="0" X="1" Y="2">
+      <RefDes>NetPort1</RefDes>
+      <Value>10k</Value>
+    </Part>
+    <Part ComponentStyle="1" ComponentPart="0" X="1" Y="2">
+      <RefDes>NetPort3</RefDes>
+      <Value>10k</Value>
+    </Part>
+    <Part ComponentStyle="0" ComponentPart="0" X="1" Y="2">
+      <RefDes>#1.1-R1</RefDes>
+      <Value>10k</Value>
+    </Part>
+    <Part ComponentStyle="0" ComponentPart="0" X="1" Y="2">
+      <RefDes>XTAL</RefDes>
+      <Value>10k</Value>
+    </Part>
+    <Part ComponentStyle="0" ComponentPart="0" X="1" Y="2">
+      <RefDes>VD&#51;</RefDes>
+      <Value>ent</Value>
+    </Part>
+    <Part ComponentStyle="0" ComponentPart="0" X="1" Y="2">
+      <RefDes>Ё3</RefDes>
+      <Value>10k</Value>
+    </Part>
+    <Part ComponentStyle="0" ComponentPart="0" X="1" Y="2">
+      <RefDes>Ё8</RefDes>
+      <Value>10k</Value>
+    </Part>
+</Components><Nets></Nets></Schematic>
+<Text>R3 стр — не трогать</Text>
+</Source>

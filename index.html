@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'">
+<title>DipTrace — заполнение пропусков позиционных обозначений</title>
+<style>
+:root{
+  --bg:#f4f6f9;--panel:#fff;--text:#1f2d3d;--muted:#64748b;--line:#dde3ea;--soft:#f6f8fb;
+  --accent:#2a5fb0;--accent-soft:#e7eef9;--ok:#1d7a4c;--warn:#9a5a00;--err:#b0283b;
+  --ok-bg:#e8f5ee;--warn-bg:#fdf3e2;--err-bg:#fbe9ec;--code:#eef2f6;--shadow:0 1px 3px rgba(20,35,60,.06);
+  color-scheme:light;
+}
+[data-theme=dark]{
+  --bg:#14181e;--panel:#1c222a;--text:#dbe2ea;--muted:#8d9aab;--line:#2e3742;--soft:#222a33;
+  --accent:#6c9ee6;--accent-soft:#25344a;--ok:#5cc28e;--warn:#e0a54a;--err:#ee7d8d;
+  --ok-bg:#1d3328;--warn-bg:#3a2e1a;--err-bg:#3d2128;--code:#28313b;--shadow:none;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{background:var(--bg);color:var(--text)}
+body{margin:0;font:14px/1.45 "Segoe UI",Arial,sans-serif}
+.wrap{max-width:1600px;margin:0 auto;padding:18px 20px 90px}
+header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+h1{font-size:22px;margin:0 0 4px;font-weight:600}
+h2{font-size:16px;margin:0 0 10px;font-weight:600}
+p{margin:6px 0}
+.muted{color:var(--muted)}.small{font-size:12.5px}
+code{background:var(--code);padding:0 4px;border-radius:4px;font-family:Consolas,"Courier New",monospace;font-size:.95em}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:12px 0;box-shadow:var(--shadow)}
+button,select,input{font:inherit;color:inherit}
+button{padding:7px 13px;border:1px solid transparent;border-radius:7px;background:var(--accent);color:#fff;font-weight:600;cursor:pointer;white-space:nowrap}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.secondary{background:var(--soft);color:var(--text);border-color:var(--line);font-weight:500}
+button.secondary:hover:not(:disabled){border-color:var(--accent)}
+button.link{background:none;border:0;color:var(--accent);padding:2px 4px;font-weight:500}
+select,input[type=number],input[type=search]{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+input[type=number]{width:90px}
+input[type=search]{min-width:200px}
+input[type=file]{display:none}
+label{cursor:pointer}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.drop{border:2px dashed var(--line);border-radius:10px;padding:22px;text-align:center;cursor:pointer;background:var(--soft);transition:.15s}
+.drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop.compact{padding:10px 14px;text-align:left;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.drop.compact p{margin:0}
+.opts{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;align-items:center}
+.layout{display:grid;grid-template-columns:350px minmax(0,1fr);gap:12px;align-items:start}
+@media (max-width:1050px){.layout{grid-template-columns:1fr}}
+aside.panel{position:sticky;top:10px;margin:0;max-height:calc(100vh - 100px);display:flex;flex-direction:column}
+main>.panel:first-child{margin-top:0}
+.glist{overflow:auto;border:1px solid var(--line);border-radius:8px;margin-top:8px;flex:1;min-height:120px}
+.grow{display:grid;grid-template-columns:22px 1fr auto;gap:6px;align-items:center;padding:5px 8px;border-bottom:1px solid var(--line)}
+.grow:last-child{border-bottom:0}
+.grow:hover{background:var(--soft)}
+.grow .nm{font-weight:600;word-break:break-all}
+.grow .meta{font-size:12px;color:var(--muted);text-align:right;white-space:nowrap}
+.badge{display:inline-block;font-size:11px;font-weight:500;padding:0 5px;border-radius:4px;margin-left:4px;background:var(--code);color:var(--muted);vertical-align:1px}
+.badge.warn{background:var(--warn-bg);color:var(--warn)}
+.badge.ok{background:var(--ok-bg);color:var(--ok)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:8px}
+.stat{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.stat b{display:block;font-size:19px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat.enc b{font-size:15px;line-height:26px}
+.stat span{font-size:12px;color:var(--muted)}
+.msg{padding:8px 12px;border-radius:7px;margin:10px 0 0}
+.msg.ok{background:var(--ok-bg);color:var(--ok)}.msg.warn{background:var(--warn-bg);color:var(--warn)}.msg.error{background:var(--err-bg);color:var(--err)}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:10px;flex-wrap:wrap}
+.tab{background:none;color:var(--muted);border:0;border-bottom:2px solid transparent;border-radius:0;padding:8px 12px;font-weight:500}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab .cnt{font-size:11px;background:var(--code);border-radius:9px;padding:0 6px;margin-left:5px;color:var(--muted)}
+.scroll{max-height:62vh;overflow:auto;border:1px solid var(--line);border-radius:8px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{background:var(--soft);position:sticky;top:0;z-index:1;font-weight:600;white-space:nowrap;cursor:default}
+th.sort{cursor:pointer}th.sort:hover{color:var(--accent)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+td.mono{font-family:Consolas,"Courier New",monospace}
+tr.chg td.new{font-weight:600;color:var(--accent)}
+tr.skip td{color:var(--muted)}
+tr.bad td{background:var(--warn-bg)}
+.more{padding:8px;text-align:center}
+.log{font-family:Consolas,"Courier New",monospace;font-size:12.5px;white-space:pre-wrap;word-break:break-word}
+.log div{padding:3px 8px;border-bottom:1px solid var(--line)}
+.log .t{color:var(--muted);margin-right:8px}
+.log .info{}.log .ok{color:var(--ok)}.log .warn{color:var(--warn);background:var(--warn-bg)}.log .error{color:var(--err);background:var(--err-bg)}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--line);box-shadow:0 -2px 8px rgba(0,0,0,.06);z-index:10}
+.bar .in{max-width:1600px;margin:0 auto;padding:9px 20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.bar .status{margin-left:auto;font-size:13px}
+.hint{font-size:12px;color:var(--muted)}
+details summary{cursor:pointer;font-weight:600}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div>
+    <h1>DipTrace — заполнение пропусков позиционных обозначений</h1>
+    <p class="muted">Автономная утилита для схем <code>.dchxml</code>. Файл обрабатывается в браузере, сетевых запросов нет. Версия <span id="ver"></span>.</p>
+  </div>
+  <button class="secondary" id="theme" type="button" title="Переключить тему">Тёмная тема</button>
+</header>
+
+<div class="panel">
+  <div class="drop" id="drop">
+    <div>
+      <strong id="dropTitle">Перетащите сюда файл .dchxml</strong>
+      <p class="muted small" id="dropSub">или нажмите, чтобы выбрать его на компьютере</p>
+    </div>
+    <button type="button" id="pick">Выбрать файл</button>
+    <input id="file" type="file" accept=".dchxml,.xml,text/xml,application/xml">
+  </div>
+  <div class="opts">
+    <label>Кодировка:
+      <select id="encSel" title="Обычно определяется автоматически по BOM и XML-декларации">
+        <option value="auto">Авто (BOM / декларация / UTF-8)</option>
+        <option value="utf-8">UTF-8</option>
+        <option value="utf-16le">UTF-16 LE</option>
+        <option value="utf-16be">UTF-16 BE</option>
+        <option value="windows-1251">Windows-1251</option>
+        <option value="koi8-r">KOI8-R</option>
+        <option value="ibm866">CP866</option>
+        <option value="iso-8859-5">ISO-8859-5</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="autoDl"> Скачивать исправленный файл автоматически после загрузки</label>
+    <label><input type="checkbox" id="autoCsv"> и протокол CSV</label>
+  </div>
+  <p class="hint">Автоскачивание срабатывает один раз при загрузке файла и только если есть изменения. После смены групп или начального номера используйте кнопки внизу.</p>
+</div>
+
+<div class="layout hidden" id="work">
+  <aside class="panel">
+    <h2>Группы обозначений</h2>
+    <div class="row">
+      <label>Начальный номер <input id="start" type="number" min="1" max="999999" value="1"></label>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <input type="search" id="gFilter" placeholder="Фильтр групп (R, C, DA…)" style="flex:1;min-width:0">
+    </div>
+    <div class="row small" style="margin-top:6px;gap:2px">
+      <button class="link" id="gDefault" type="button">Все, кроме портов</button>
+      <button class="link" id="gGaps" type="button">Только с пропусками</button>
+      <button class="link" id="gNone" type="button">Снять</button>
+      <button class="link" id="gInvert" type="button">Инвертировать</button>
+    </div>
+    <div class="row small" style="margin-top:2px">
+      <label>Сортировка:
+        <select id="gSort"><option value="name">по имени</option><option value="count">по числу секций</option><option value="gaps">по пропускам</option></select>
+      </label>
+      <span class="muted" id="gInfo"></span>
+    </div>
+    <div class="glist" id="groups"></div>
+    <p class="hint">Секции / уникальных / пропусков. Номера уплотняются по возрастанию прежнего номера, не по положению на листе.</p>
+  </aside>
+
+  <main>
+    <div class="panel">
+      <div class="stats" id="stats"></div>
+      <div id="message" class="msg hidden"></div>
+    </div>
+    <div class="panel">
+      <div class="tabs" id="tabs">
+        <button class="tab active" data-tab="sum" type="button">Сводка по группам<span class="cnt" id="cSum">0</span></button>
+        <button class="tab" data-tab="ren" type="button">Переименования<span class="cnt" id="cRen">0</span></button>
+        <button class="tab" data-tab="det" type="button">Подробный лог замен<span class="cnt" id="cDet">0</span></button>
+        <button class="tab" data-tab="nst" type="button">Не перенумеровываются<span class="cnt" id="cNst">0</span></button>
+        <button class="tab" data-tab="log" type="button">Журнал<span class="cnt" id="cLog">0</span></button>
+      </div>
+
+      <div data-pane="sum">
+        <div class="scroll"><table><thead><tr><th>Группа</th><th class="num">Секций</th><th class="num">Уникальных</th><th>Было</th><th class="num">Пропусков</th><th class="num">Переименовано</th><th>Станет</th></tr></thead><tbody id="tSum"></tbody></table></div>
+      </div>
+
+      <div data-pane="ren" class="hidden">
+        <div class="row" style="margin-bottom:8px"><input type="search" id="rFilter" placeholder="Поиск: C12, R1 …"><select id="rGroup"></select><span class="hint" id="rInfo"></span></div>
+        <div class="scroll"><table><thead><tr><th>Группа</th><th>Было</th><th>Станет</th><th class="num">Секций</th></tr></thead><tbody id="tRen"></tbody></table><div class="more hidden" id="rMore"><button class="secondary" type="button">Показать ещё</button></div></div>
+      </div>
+
+      <div data-pane="det" class="hidden">
+        <div class="row" style="margin-bottom:8px">
+          <input type="search" id="dFilter" placeholder="Поиск по обозначению, Value, компоненту">
+          <select id="dGroup"></select>
+          <select id="dMode"><option value="chg">Только изменённые секции</option><option value="all">Все секции схемы</option><option value="skip">Без изменений</option></select>
+          <span class="hint" id="dInfo"></span>
+        </div>
+        <div class="scroll"><table><thead><tr><th class="num">№</th><th class="num">Строка</th><th>Группа</th><th>Было</th><th>Станет</th><th class="num">Секция</th><th>Value</th><th>Компонент</th><th class="num">Смещение, байт</th></tr></thead><tbody id="tDet"></tbody></table><div class="more hidden" id="dMore"><button class="secondary" type="button">Показать ещё</button></div></div>
+      </div>
+
+      <div data-pane="nst" class="hidden">
+        <p class="hint">Эти обозначения не соответствуют формату «буквенный префикс + номер без ведущих нулей» и остаются без изменений.</p>
+        <div class="scroll"><table><thead><tr><th class="num">Строка</th><th>RefDes</th><th>Причина</th><th class="num">Секция</th><th>Value</th><th>Компонент</th></tr></thead><tbody id="tNst"></tbody></table></div>
+      </div>
+
+      <div data-pane="log" class="hidden">
+        <div class="row" style="margin-bottom:8px">
+          <select id="lLevel"><option value="">Все записи</option><option value="warn">Предупреждения и ошибки</option></select>
+          <button class="secondary" id="lCopy" type="button">Копировать журнал</button>
+        </div>
+        <div class="scroll log" id="tLog"></div>
+      </div>
+    </div>
+
+    <details class="panel small">
+      <summary>Что меняется и ограничения</summary>
+      <p>Меняются только цифры номера внутри тегов <code>&lt;RefDes&gt;</code> у элементов <code>Part</code> в <code>Schematic/Components</code>. Замена делается в исходных байтах файла: кодировка, BOM, XML-декларация, переводы строк, библиотека и BOM-поля остаются побайтно прежними.</p>
+      <p>Одинаковые префикс и номер считаются секциями одного компонента и переименовываются вместе. Надписи на листе, внешние ссылки и PCB не обновляются. Перед рабочим использованием сохраните исходник и проверьте результат в DipTrace.</p>
+    </details>
+  </main>
+</div>
+</div>
+
+<div class="bar hidden" id="bar"><div class="in">
+  <button id="dlXml" type="button" disabled>Скачать исправленный DCHXML</button>
+  <button class="secondary" id="dlCsv" type="button" disabled>Протокол CSV</button>
+  <button class="secondary" id="dlLogCsv" type="button" disabled>Подробный лог CSV</button>
+  <button class="secondary" id="dlLogTxt" type="button" disabled>Журнал TXT</button>
+  <span class="status" id="status"></span>
+</div></div>
+
+<script>
+'use strict';
+const VERSION = '2.0.0';
+const PAGE = 500;                 // строк таблицы за один показ
+const LS = 'diptraceRefdesRepair.';
+
+/* ---------- состояние ---------- */
+const S = {
+  file: null,        // {name, size, bytes:Uint8Array}
+  enc: null,         // {name, bomLen, how, declared, unit}
+  text: '',          // текст без BOM
+  parts: [],         // все секции Schematic/Components/Part
+  groups: new Map(), // prefix -> сведения о группе
+  plan: null,        // результат последнего расчёта
+  out: null,         // {bytes, text}
+  log: [],
+  autoPending: false
+};
+
+const $ = id => document.getElementById(id);
+const esc = x => String(x ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtN = n => Number(n).toLocaleString('ru-RU');
+const stamp = () => new Date().toLocaleTimeString('ru-RU');
+const baseName = () => S.file.name.replace(/\.[^.\\/]+$/, '') || S.file.name;
+
+function log(level, msg){
+  S.log.push({t: stamp(), level, msg});
+  renderLog();
+}
+
+/* ---------- тема ---------- */
+function setTheme(t){
+  document.documentElement.dataset.theme = t;
+  $('theme').textContent = t === 'dark' ? 'Светлая тема' : 'Тёмная тема';
+  try{ localStorage.setItem(LS + 'theme', t); }catch{}
+}
+$('theme').onclick = () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+
+/* ---------- настройки автоскачивания ---------- */
+function loadPrefs(){
+  let p = {};
+  try{ p = JSON.parse(localStorage.getItem(LS + 'prefs') || '{}'); }catch{}
+  $('autoDl').checked = p.autoDl !== false;      // по умолчанию включено
+  $('autoCsv').checked = !!p.autoCsv;
+  $('autoCsv').disabled = !$('autoDl').checked;
+}
+function savePrefs(){
+  $('autoCsv').disabled = !$('autoDl').checked;
+  try{ localStorage.setItem(LS + 'prefs', JSON.stringify({autoDl: $('autoDl').checked, autoCsv: $('autoCsv').checked})); }catch{}
+}
+$('autoDl').onchange = savePrefs; $('autoCsv').onchange = savePrefs;
+
+/* =====================================================================
+   КОДИРОВКА
+   Приоритет: ручной выбор > BOM > сигнатура UTF-16 без BOM > encoding в
+   XML-декларации > UTF-8. Однобайтовые кодировки декодируются строго
+   «1 байт = 1 символ», поэтому смещения символов совпадают со смещениями байт.
+   ===================================================================== */
+const SINGLE = {'windows-1251':1,'koi8-r':1,'koi8-u':1,'ibm866':1,'iso-8859-5':1,'windows-1252':1,'iso-8859-1':1,'us-ascii':1};
+const ALIASES = {
+  'utf8':'utf-8','utf-8':'utf-8','unicode-1-1-utf-8':'utf-8',
+  'utf-16':'utf-16','utf16':'utf-16','ucs-2':'utf-16','utf-16le':'utf-16le','utf-16be':'utf-16be',
+  'windows-1251':'windows-1251','cp1251':'windows-1251','x-cp1251':'windows-1251','win-1251':'windows-1251',
+  'koi8-r':'koi8-r','koi8r':'koi8-r','koi8-u':'koi8-u','ibm866':'ibm866','cp866':'ibm866','866':'ibm866',
+  'iso-8859-5':'iso-8859-5','windows-1252':'windows-1252','cp1252':'windows-1252',
+  'iso-8859-1':'windows-1252','latin1':'windows-1252','us-ascii':'windows-1252','ascii':'windows-1252'
+};
+
+function sniffBOM(b){
+  if(b.length >= 4 && ((b[0]===0xFF && b[1]===0xFE && b[2]===0 && b[3]===0) || (b[0]===0 && b[1]===0 && b[2]===0xFE && b[3]===0xFF)))
+    throw new Error('Файл в кодировке UTF-32. Пересохраните его в UTF-8 или UTF-16.');
+  if(b[0]===0xEF && b[1]===0xBB && b[2]===0xBF) return {name:'utf-8', bomLen:3, how:'BOM UTF-8'};
+  if(b[0]===0xFF && b[1]===0xFE) return {name:'utf-16le', bomLen:2, how:'BOM UTF-16 LE'};
+  if(b[0]===0xFE && b[1]===0xFF) return {name:'utf-16be', bomLen:2, how:'BOM UTF-16 BE'};
+  if(b[0]===0x3C && b[1]===0 && b[2]===0x3F && b[3]===0) return {name:'utf-16le', bomLen:0, how:'сигнатура UTF-16 LE без BOM'};
+  if(b[0]===0 && b[1]===0x3C && b[2]===0 && b[3]===0x3F) return {name:'utf-16be', bomLen:0, how:'сигнатура UTF-16 BE без BOM'};
+  return null;
+}
+
+function readDeclaration(b, enc, bomLen){
+  const head = b.subarray(bomLen || 0, 1024);
+  let s;
+  if(enc && enc.startsWith('utf-16')) s = new TextDecoder(enc).decode(head);
+  else s = Array.from(head, c => c < 128 ? String.fromCharCode(c) : '?').join('');
+  const m = /^\uFEFF?\s*<\?xml\b[^>]*?\bencoding\s*=\s*["']([A-Za-z0-9._:-]+)["']/.exec(s);
+  return m ? m[1] : null;
+}
+
+// Позиция первого некорректного байта UTF-8 (для понятного сообщения об ошибке).
+function badUtf8At(b){
+  for(let i = 0; i < b.length;){
+    const c = b[i];
+    if(c < 0x80){ i++; continue; }
+    let n, lo = 0x80, hi = 0xBF;
+    if(c >= 0xC2 && c <= 0xDF) n = 1;
+    else if(c >= 0xE0 && c <= 0xEF){ n = 2; if(c === 0xE0) lo = 0xA0; if(c === 0xED) hi = 0x9F; }
+    else if(c >= 0xF0 && c <= 0xF4){ n = 3; if(c === 0xF0) lo = 0x90; if(c === 0xF4) hi = 0x8F; }
+    else return i;
+    if(i + n >= b.length || b[i+1] < lo || b[i+1] > hi) return i;
+    for(let k = 2; k <= n; k++) if((b[i+k] & 0xC0) !== 0x80) return i;
+    i += n + 1;
+  }
+  return -1;
+}
+const lineAtByte = (b, pos) => { let l = 1; for(let i = 0; i < pos; i++) if(b[i] === 10) l++; return l; };
+
+function decodeBytes(b, manual){
+  const warn = [];
+  let e = sniffBOM(b);
+  const declRaw = readDeclaration(b, e && e.name, e && e.bomLen);
+  const decl = declRaw ? (ALIASES[declRaw.toLowerCase()] || declRaw.toLowerCase()) : null;
+
+  if(manual && manual !== 'auto'){
+    const bomLen = e && ((e.name === manual) || (manual.startsWith('utf-16') && e.name === manual)) ? e.bomLen : 0;
+    if(e && e.bomLen && e.name !== manual) warn.push(`В файле ${e.how}, но вручную выбрана ${manual}. Проверьте результат.`);
+    e = {name: manual, bomLen, how: 'выбрана вручную'};
+  } else if(!e){
+    if(decl && decl !== 'utf-8'){
+      if(decl === 'utf-16') throw new Error('В декларации указано UTF-16, но BOM нет. Выберите UTF-16 LE или BE вручную.');
+      if(!SINGLE[decl] && decl !== 'utf-16le' && decl !== 'utf-16be')
+        throw new Error(`Кодировка «${declRaw}» из XML-декларации не поддерживается. Пересохраните файл в UTF-8.`);
+      e = {name: decl, bomLen: 0, how: `XML-декларация encoding="${declRaw}"`};
+    } else e = {name: 'utf-8', bomLen: 0, how: decl ? `XML-декларация encoding="${declRaw}"` : 'по умолчанию для XML (UTF-8)'};
+  } else if(decl && decl !== e.name && !(decl === 'utf-16' && e.name.startsWith('utf-16'))){
+    warn.push(`XML-декларация указывает encoding="${declRaw}", но ${e.how}. По правилам XML приоритет у BOM.`);
+  }
+
+  e.unit = e.name.startsWith('utf-16') ? 2 : 1;
+  e.declared = declRaw;
+  if(e.name.startsWith('utf-16') && (b.length - e.bomLen) % 2) throw new Error('Нечётная длина файла UTF-16: файл повреждён или обрезан.');
+
+  const body = b.subarray(e.bomLen);
+  let text;
+  if(e.name === 'utf-8'){
+    try{ text = new TextDecoder('utf-8', {fatal:true, ignoreBOM:true}).decode(body); }
+    catch{
+      const at = badUtf8At(b);
+      throw new Error(`Файл не является корректным UTF-8: байт 0x${(b[at]||0).toString(16).toUpperCase().padStart(2,'0')} на смещении ${at} (строка ${lineAtByte(b, at)}). `
+        + 'Если схема сохранена в Windows-1251, выберите кодировку вручную.');
+    }
+  } else if(e.unit === 2){
+    try{ text = new TextDecoder(e.name, {fatal:true, ignoreBOM:true}).decode(body); }
+    catch{ throw new Error(`Некорректная последовательность ${e.name.toUpperCase()} (непарный суррогат).`); }
+  } else {
+    text = new TextDecoder(e.name, {ignoreBOM:true}).decode(body);
+    if(text.length !== body.length) throw new Error(`Декодер ${e.name} нарушил соответствие «1 байт = 1 символ».`);
+  }
+  if(text.charCodeAt(0) === 0xFEFF) throw new Error('После BOM обнаружен второй BOM. Пересохраните файл.');
+  if(text.indexOf('\u0000') >= 0) throw new Error('В тексте есть нулевые символы: вероятно, неверно определена кодировка (UTF-16?). Выберите её вручную.');
+  const bad = (text.match(/\uFFFD/g) || []).length;
+  if(bad) warn.push(`В тексте ${bad} символ(ов) U+FFFD «�»: они были в исходнике или кодировка выбрана неверно.`);
+  if(e.unit === 1 && e.name !== 'utf-8' && /[\u0080-\u009F]/.test(text)) warn.push('Есть управляющие символы C1 (0x80–0x9F): возможно, кодировка выбрана неверно.');
+  return {text, enc: e, warn};
+}
+
+// Кодирование заменяемого фрагмента: в нём только ASCII-цифры.
+function encodeDigits(str, enc){
+  const out = new Uint8Array(str.length * enc.unit);
+  for(let i = 0; i < str.length; i++){
+    const c = str.charCodeAt(i);
+    if(enc.name === 'utf-16le'){ out[2*i] = c; out[2*i+1] = 0; }
+    else if(enc.name === 'utf-16be'){ out[2*i] = 0; out[2*i+1] = c; }
+    else out[i] = c;
+  }
+  return out;
+}
+
+/* ---------- XML ---------- */
+const decodeXML = s => s.replace(/&(#x[0-9a-fA-F]+|#[0-9]+|amp|lt|gt|quot|apos);/g, (m, t) => {
+  if(t[0] === '#'){ const n = t[1] === 'x' ? parseInt(t.slice(2), 16) : parseInt(t.slice(1), 10); try{ return String.fromCodePoint(n); }catch{ return m; } }
+  return {amp:'&', lt:'<', gt:'>', quot:'"', apos:"'"}[t] || m;
+});
+function parseXML(text){
+  const d = new DOMParser().parseFromString(text, 'application/xml');
+  const pe = d.getElementsByTagName('parsererror')[0];
+  if(pe) throw new Error('Некорректный XML: ' + pe.textContent.trim().slice(0, 240));
+  const r = d.documentElement;
+  if(r.tagName !== 'Source' || r.getAttribute('Type') !== 'DipTrace-Schematic')
+    throw new Error('Это не экспорт схемы DipTrace (ожидается <Source Type="DipTrace-Schematic">).');
+  return d;
+}
+const kid = (e, n) => e ? [...e.children].find(c => c.tagName === n) || null : null;
+const kids = (e, n) => e ? [...e.children].filter(c => c.tagName === n) : [];
+const txt = (e, n) => { const c = kid(e, n); return c ? c.textContent : ''; };
+
+// Префикс: любые буквы Unicode (латиница, кириллица, включая Ё) и «_»; номер — ASCII-цифры.
+const REF_RE = /^([\p{L}_]+)(\d+)$/u;
+
+/* Поиск секций и смещений цифр номера в тексте. Результат сверяется с DOM. */
+function extract(text, doc){
+  const open = /<Schematic(?=[\s>])[^>]*>/.exec(text);
+  if(!open) throw new Error('Отсутствует блок <Schematic>.');
+  const from = open.index + open[0].length;
+  const close = text.indexOf('</Schematic>', from);
+  if(close < 0) throw new Error('Незакрытый блок <Schematic>.');
+  const cm = /<Components(?=[\s>\/])[^>]*?(\/?)>/.exec(text.slice(from, close));
+  if(!cm) throw new Error('Нет блока <Schematic><Components>.');
+  if(cm[1] === '/') return [];
+  const cFrom = from + cm.index + cm[0].length, cTo = text.indexOf('</Components>', cFrom);
+  if(cTo < 0 || cTo > close) throw new Error('Не найден конец списка компонентов схемы.');
+  const content = text.slice(cFrom, cTo);
+  const parts = [];
+  const re = /<Part(?=[\s>\/])[^>]*?(\/?)>/g;
+  let hit;
+  while((hit = re.exec(content)) !== null){
+    if(hit[1] === '/'){ parts.push({pos: cFrom + hit.index, ref:'', raw:'', start:-1, end:-1, selfClosed:true}); continue; }
+    const endIdx = content.indexOf('</Part>', re.lastIndex);
+    if(endIdx < 0) throw new Error('Незакрытый тег <Part> на позиции ' + (cFrom + hit.index));
+    const blk = content.slice(hit.index, endIdx);
+    if(/<Part(?=[\s>\/])/.test(blk.slice(1))) throw new Error('Вложенный <Part> внутри секции схемы — структура не поддерживается.');
+    const refs = [...blk.matchAll(/<RefDes(?=[\s>\/])[^>]*?(\/?)>(?:([\s\S]*?)<\/RefDes>)?/g)];
+    if(refs.length !== 1) throw new Error(`Секция схемы содержит ${refs.length} тегов RefDes (позиция ${cFrom + hit.index}).`);
+    const r = refs[0];
+    const raw = r[1] === '/' ? '' : (r[2] ?? '');
+    const start = cFrom + hit.index + r.index + r[0].indexOf('>') + 1;
+    parts.push({pos: cFrom + hit.index, raw, start, end: start + raw.length});
+    re.lastIndex = endIdx + 7;
+  }
+
+  // Сверка с DOM: число секций и текст RefDes должны совпасть один в один.
+  const sch = kid(doc.documentElement, 'Schematic');
+  const domParts = kids(kid(sch, 'Components'), 'Part');
+  if(domParts.length !== parts.length)
+    throw new Error(`Расхождение структуры: в DOM ${domParts.length} секций, текстовый разбор нашёл ${parts.length}. Файл не изменён.`);
+
+  const lib = kid(doc.documentElement, 'Library');
+  const comps = {};
+  kids(kid(lib, 'Components'), 'Component').forEach(c => comps[c.getAttribute('ComponentStyle')] = c);
+
+  parts.forEach((p, i) => {
+    const dp = domParts[i];
+    const domRef = txt(dp, 'RefDes');
+    let raw = p.raw, cdata = false, lead = 0, inner = raw;
+    const cd = /^(\s*)<!\[CDATA\[([\s\S]*)\]\]>(\s*)$/.exec(raw);
+    if(cd){ cdata = true; lead = cd[1].length + 9; inner = cd[2]; }
+    p.ref = (cdata ? inner : decodeXML(raw)).trim();
+    if(p.ref !== domRef.trim()) throw new Error(`Расхождение RefDes в секции ${i + 1}: «${p.ref}» / «${domRef.trim()}». Файл не изменён.`);
+
+    const m = REF_RE.exec(p.ref);
+    p.status = 'ok';
+    if(!p.ref) p.status = 'empty';
+    else if(!m) p.status = 'nonstd';
+    else {
+      p.prefix = m[1]; p.numStr = m[2]; p.num = Number(m[2]);
+      if(p.numStr.length > 1 && p.numStr[0] === '0') p.status = 'leadzero';
+      else if(!Number.isSafeInteger(p.num) || p.num < 1 || p.num > 999999999) p.status = 'range';
+      // Цифры номера должны стоять буквально в конце исходного содержимого (без сущностей).
+      const tail = /(\d+)(\s*)$/.exec(inner);
+      if(p.status === 'ok' && (!tail || tail[1] !== p.numStr)) p.status = 'entity';
+      if(p.status === 'ok'){
+        p.dStart = p.start + lead + tail.index;
+        p.dEnd = p.dStart + tail[1].length;
+        if(text.slice(p.dStart, p.dEnd) !== p.numStr) throw new Error('Внутренняя ошибка смещений в секции ' + (i + 1));
+      }
+    }
+    if(!p.prefix && m) p.prefix = m[1];
+    p.idx = i + 1;
+    p.value = txt(dp, 'Value').trim();
+    p.cpart = dp.getAttribute('ComponentPart') ?? '';
+    const c = comps[dp.getAttribute('ComponentStyle')];
+    const secs = kids(c, 'Part');
+    const sec = secs[+p.cpart || 0] || secs[0];
+    p.comp = (txt(c, 'Name') || (c && c.getAttribute('Name')) || txt(sec, 'Name') || '').trim();
+    p.partType = sec ? (sec.getAttribute('PartType') || '') : '';
+    p.isPort = /net\s*port/i.test(p.partType) || /^netport$/i.test(p.prefix || '');
+  });
+  return parts;
+}
+
+// Номера строк и байтовые смещения считаются одним проходом по возрастанию позиции.
+function annotate(parts, text, enc){
+  const nl = text.indexOf('\n') >= 0 ? '\n' : '\r';
+  let line = 1, lastPos = 0, bytePos = enc.bomLen;
+  const te = new TextEncoder();
+  for(const p of parts){
+    const pos = p.dStart ?? p.start;
+    if(pos < 0){ p.line = ''; continue; }
+    for(let i = lastPos; i < pos; i++) if(text[i] === nl) line++;
+    if(enc.name === 'utf-8') bytePos += te.encode(text.slice(lastPos, pos)).length;
+    else bytePos = enc.bomLen + pos * enc.unit;
+    lastPos = pos;
+    p.line = line;
+    p.byte = bytePos;
+    if(p.dEnd != null) p.byteEnd = bytePos + (p.dEnd - p.dStart) * enc.unit;
+  }
+}
+
+/* ---------- визуально одинаковые префиксы (кириллица/латиница) ---------- */
+const HOMO = {'А':'A','В':'B','С':'C','Е':'E','Н':'H','К':'K','М':'M','О':'O','Р':'P','Т':'T','Х':'X','У':'Y','а':'a','е':'e','о':'o','р':'p','с':'c','х':'x','у':'y','к':'k','м':'m','т':'t','н':'h','в':'b'};
+const skeleton = s => [...s].map(c => HOMO[c] || c).join('');
+function script(s){
+  const cyr = /[\u0400-\u04FF]/.test(s), lat = /[A-Za-z]/.test(s);
+  return cyr && lat ? 'смешанный' : cyr ? 'кир.' : lat ? 'лат.' : '';
+}
+
+// Имя группы с меткой алфавита, чтобы кириллическую «С» не путать с латинской «C».
+const pLabel = p => { if(!p) return ''; const sc = script(p); return esc(p) + (sc && sc !== 'лат.' ? `<span class="badge${sc === 'смешанный' ? ' warn' : ''}">${sc}</span>` : ''); };
+function buildGroups(){
+  const G = new Map();
+  for(const p of S.parts){
+    if(p.status !== 'ok') continue;
+    if(!G.has(p.prefix)) G.set(p.prefix, {prefix:p.prefix, sections:0, nums:new Map(), ports:0});
+    const g = G.get(p.prefix);
+    g.sections++; if(p.isPort) g.ports++;
+    if(!g.nums.has(p.num)) g.nums.set(p.num, []);
+    g.nums.get(p.num).push(p);
+  }
+  const sk = new Map();
+  for(const g of G.values()){
+    g.sorted = [...g.nums.keys()].sort((a, b) => a - b);
+    g.unique = g.sorted.length;
+    g.min = g.sorted[0]; g.max = g.sorted[g.unique - 1];
+    g.gaps = g.max - g.unique;               // пропуски в диапазоне 1..max
+    g.port = g.ports === g.sections;
+    g.script = script(g.prefix);
+    const k = skeleton(g.prefix);
+    if(!sk.has(k)) sk.set(k, []); sk.get(k).push(g.prefix);
+  }
+  for(const list of sk.values()) if(list.length > 1) for(const p of list) G.get(p).twins = list.filter(x => x !== p);
+  S.groups = G;
+}
+
+/* =====================================================================
+   ЗАГРУЗКА
+   ===================================================================== */
+function loadFile(file){
+  if(!file) return;
+  file.arrayBuffer().then(buf => {
+    S.file = {name: file.name, size: file.size, bytes: new Uint8Array(buf)};
+    S.log = [];
+    S.autoPending = $('autoDl').checked;
+    if($('encSel').value !== 'auto'){ $('encSel').value = 'auto'; }   // ручной выбор относится только к предыдущему файлу
+    processFile(true);
+  }).catch(e => fail(e));
+  $('file').value = '';   // позволяет повторно выбрать тот же файл
+}
+
+function processFile(fresh){
+  const t0 = performance.now();
+  S.plan = null; S.out = null; setButtons(false);
+  if(!fresh) log('info', 'Повторное чтение файла с кодировкой: ' + $('encSel').selectedOptions[0].textContent);
+  try{
+    const b = S.file.bytes;
+    log('info', `Файл: ${S.file.name}, ${fmtN(b.length)} байт`);
+    const d = decodeBytes(b, $('encSel').value);
+    S.text = d.text; S.enc = d.enc;
+    log('ok', `Кодировка: ${S.enc.name.toUpperCase()} (${S.enc.how}); BOM: ${S.enc.bomLen ? 'есть, ' + S.enc.bomLen + ' байт' : 'нет'}; декларация: ${S.enc.declared ? 'encoding="' + S.enc.declared + '"' : 'без encoding'}`);
+    d.warn.forEach(w => log('warn', w));
+    const crlf = (S.text.match(/\r\n/g) || []).length, lf = (S.text.match(/\n/g) || []).length - crlf, cr = (S.text.match(/\r/g) || []).length - crlf;
+    const eol = [crlf && `CRLF ×${fmtN(crlf)}`, lf && `LF ×${fmtN(lf)}`, cr && `CR ×${fmtN(cr)}`].filter(Boolean).join(', ') || 'нет';
+    log((crlf && lf) || (crlf && cr) || (lf && cr) ? 'warn' : 'info', 'Переводы строк: ' + eol + ((crlf && lf) ? ' (смешанные, сохраняются как есть)' : ''));
+
+    const doc = parseXML(S.text);
+    log('ok', 'XML корректен, корневой элемент Source Type="DipTrace-Schematic"');
+    S.parts = extract(S.text, doc);
+    annotate(S.parts, S.text, S.enc);
+    buildGroups();
+    const sc = S.parts.filter(p => p.selfClosed).length;
+    if(sc) log('warn', `Секций без содержимого (<Part/>): ${sc}`);
+    const ns = S.parts.filter(p => p.status !== 'ok');
+    log('info', `Секций в схеме: ${fmtN(S.parts.length)}; групп: ${S.groups.size}; не перенумеровываются: ${ns.length}`);
+    const why = {};
+    ns.forEach(p => why[p.status] = (why[p.status] || 0) + 1);
+    if(why.leadzero) log('warn', `Обозначений с ведущими нулями (R01 и т. п.): ${why.leadzero}. Они оставлены как есть, чтобы R01 и R1 не слились в один компонент.`);
+    if(why.entity) log('warn', `Номер записан XML-сущностями: ${why.entity}. Такие обозначения не меняются.`);
+    for(const g of S.groups.values()){
+      if(g.script === 'смешанный') log('warn', `Префикс «${g.prefix}» содержит одновременно кириллицу и латиницу.`);
+      if(g.twins && g.prefix < g.twins[0]) log('warn', `Группы ${[g.prefix, ...g.twins].map(p => `«${p}» (${script(p)})`).join(' и ')} выглядят одинаково, но для DipTrace это разные префиксы.`);
+    }
+    if(!S.parts.length) throw new Error('В Schematic/Components нет секций Part.');
+    log('info', `Разбор: ${Math.round(performance.now() - t0)} мс`);
+    showWork();
+    renderGroups(true);
+    compute(true);
+  }catch(e){ fail(e); }
+}
+
+function fail(e){
+  log('error', e.message || String(e));
+  $('work').classList.remove('hidden');
+  $('bar').classList.remove('hidden');
+  showMsg('error', 'Ошибка: ' + (e.message || e));
+  $('stats').innerHTML = '';
+  ['tSum','tRen','tDet','tNst'].forEach(id => $(id).innerHTML = '');
+  $('groups').innerHTML = '';
+  setButtons(false, true);
+  $('status').textContent = 'Файл не обработан';
+  if(S.file){ $('drop').classList.add('compact'); $('dropTitle').textContent = S.file.name; $('dropSub').textContent = 'не обработан · выберите другой файл или кодировку'; $('pick').textContent = 'Другой файл'; }
+  switchTab('log');
+}
+
+function showWork(){
+  $('work').classList.remove('hidden');
+  $('bar').classList.remove('hidden');
+  const d = $('drop');
+  d.classList.add('compact');
+  $('dropTitle').textContent = S.file.name;
+  $('dropSub').textContent = `${(S.file.size / 1048576).toFixed(2)} МБ · ${S.enc.name.toUpperCase()}${S.enc.bomLen ? ' с BOM' : ''} · секций: ${fmtN(S.parts.length)} · перетащите другой файл или нажмите для выбора`;
+  $('pick').textContent = 'Другой файл';
+}
+
+/* ---------- список групп ---------- */
+function renderGroups(defaults){
+  const prev = new Set([...document.querySelectorAll('.gchk:checked')].map(x => x.dataset.p));
+  const f = $('gFilter').value.trim().toLowerCase();
+  const sort = $('gSort').value;
+  let list = [...S.groups.values()];
+  list.sort(sort === 'count' ? (a, b) => b.sections - a.sections : sort === 'gaps' ? (a, b) => b.gaps - a.gaps : (a, b) => a.prefix.localeCompare(b.prefix, 'ru', {numeric:true}));
+  const state = S.selected || new Set();
+  if(defaults){ state.clear(); list.forEach(g => { if(!g.port) state.add(g.prefix); }); }
+  S.selected = state;
+  const shown = list.filter(g => !f || g.prefix.toLowerCase().includes(f));
+  $('groups').innerHTML = shown.map(g => `<label class="grow" title="${esc(g.prefix)}: секций ${g.sections}, уникальных ${g.unique}, номера ${g.min}–${g.max}">
+    <input type="checkbox" class="gchk" data-p="${esc(g.prefix)}" ${state.has(g.prefix) ? 'checked' : ''}>
+    <span class="nm">${esc(g.prefix)}${g.script && g.script !== 'лат.' ? `<span class="badge${g.script === 'смешанный' ? ' warn' : ''}">${g.script}</span>` : ''}${g.port ? '<span class="badge">порт</span>' : ''}${g.twins ? `<span class="badge warn" title="Внешне совпадает с ${esc(g.twins.join(', '))}">похож на ${esc(g.twins.join(', '))}</span>` : ''}</span>
+    <span class="meta">${g.sections} / ${g.unique} / ${g.gaps ? `<b class="warn" style="color:var(--warn)">${g.gaps}</b>` : '0'}</span></label>`).join('') || '<p class="muted" style="padding:8px">Ничего не найдено</p>';
+  $('gInfo').textContent = `выбрано ${state.size} из ${S.groups.size}`;
+}
+$('groups').addEventListener('change', e => {
+  if(!e.target.classList.contains('gchk')) return;
+  e.target.checked ? S.selected.add(e.target.dataset.p) : S.selected.delete(e.target.dataset.p);
+  $('gInfo').textContent = `выбрано ${S.selected.size} из ${S.groups.size}`;
+  computeSoon();
+});
+const visibleGroups = () => [...document.querySelectorAll('.gchk')].map(x => x.dataset.p);
+$('gDefault').onclick = () => { S.selected.clear(); for(const g of S.groups.values()) if(!g.port) S.selected.add(g.prefix); renderGroups(); compute(); };
+$('gGaps').onclick = () => { S.selected.clear(); for(const g of S.groups.values()) if(g.gaps && !g.port) S.selected.add(g.prefix); renderGroups(); compute(); };
+$('gNone').onclick = () => { visibleGroups().forEach(p => S.selected.delete(p)); renderGroups(); compute(); };
+$('gInvert').onclick = () => { visibleGroups().forEach(p => S.selected.has(p) ? S.selected.delete(p) : S.selected.add(p)); renderGroups(); compute(); };
+$('gFilter').oninput = () => renderGroups();
+$('gSort').onchange = () => renderGroups();
+
+/* =====================================================================
+   РАСЧЁТ И ПРОВЕРКА
+   ===================================================================== */
+let timer = 0;
+function computeSoon(){ clearTimeout(timer); setButtons(false); $('status').textContent = 'Пересчёт…'; timer = setTimeout(() => compute(), 250); }
+
+function compute(initial){
+  clearTimeout(timer);
+  S.plan = null; S.out = null; setButtons(false);
+  const t0 = performance.now();
+  const start = Number($('start').value);
+  try{
+    if(!Number.isSafeInteger(start) || start < 1 || start > 999999) throw new Error('Начальный номер должен быть целым числом от 1 до 999999.');
+    const renames = [], edits = [];
+    for(const g of S.groups.values()){
+      g.renamed = 0; g.newMin = g.min; g.newMax = g.max;
+      if(!S.selected.has(g.prefix)) continue;
+      g.newMin = start; g.newMax = start + g.unique - 1;
+      g.sorted.forEach((oldNum, j) => {
+        const newNum = start + j;
+        if(newNum === oldNum) return;
+        const secs = g.nums.get(oldNum);
+        renames.push({prefix: g.prefix, oldRef: g.prefix + oldNum, newRef: g.prefix + newNum, count: secs.length, oldNum});
+        for(const p of secs) edits.push({p, newStr: String(newNum)});
+        g.renamed++;
+      });
+    }
+    // Сопоставление «секция → новое обозначение».
+    const newRef = new Map();
+    edits.forEach(x => newRef.set(x.p, x.p.prefix + x.newStr));
+
+    // 1) Ожидаемый текст: замены строго по смещениям, от конца к началу.
+    // Сборка частями за один проход (линейно даже для десятков тысяч замен).
+    edits.sort((a, b) => b.p.dStart - a.p.dStart);
+    const pieces = [];
+    let tc = 0;
+    for(let i = edits.length - 1; i >= 0; i--){ const x = edits[i]; pieces.push(S.text.slice(tc, x.p.dStart), x.newStr); tc = x.p.dEnd; }
+    pieces.push(S.text.slice(tc));
+    const text = pieces.join('');
+
+    // 2) Выходные байты: исходные байты + новые цифры в той же кодировке.
+    const src = S.file.bytes, chunks = [];
+    let cur = 0, len = 0;
+    for(let i = edits.length - 1; i >= 0; i--){
+      const x = edits[i];
+      chunks.push(src.subarray(cur, x.p.byte));
+      chunks.push(encodeDigits(x.newStr, S.enc));
+      cur = x.p.byteEnd;
+    }
+    chunks.push(src.subarray(cur));
+    chunks.forEach(c => len += c.length);
+    const bytes = new Uint8Array(len);
+    let o = 0; for(const c of chunks){ bytes.set(c, o); o += c.length; }
+
+    // 3) Проверки: декодирование результата, XML, структура, коллизии.
+    let back;
+    try{ back = new TextDecoder(S.enc.name, {fatal: S.enc.unit === 2 || S.enc.name === 'utf-8', ignoreBOM:true}).decode(bytes.subarray(S.enc.bomLen)); }catch{ back = null; }
+    for(let i = 0; i < S.enc.bomLen; i++) if(bytes[i] !== src[i]) back = null;
+    if(back !== text) throw new Error('Контроль кодировки не пройден: результат декодируется не так, как ожидалось. Файл не сформирован.');
+    if(edits.length){
+      const doc = parseXML(text);
+      const post = extract(text, doc);
+      if(post.length !== S.parts.length) throw new Error('После замены изменилось число секций.');
+      post.forEach((q, i) => {
+        const p = S.parts[i], exp = newRef.get(p) ?? p.ref;
+        if(q.ref !== exp) throw new Error(`Проверка не пройдена в секции ${i + 1}: ожидалось ${exp}, получено ${q.ref}.`);
+      });
+      for(const g of S.groups.values()){
+        if(!S.selected.has(g.prefix)) continue;
+        const u = new Set(post.filter(q => q.status === 'ok' && q.prefix === g.prefix).map(q => q.num));
+        if(u.size !== g.unique) throw new Error('Коллизия обозначений в группе ' + g.prefix);
+      }
+    }
+    const ms = Math.round(performance.now() - t0);
+    renames.sort((a, b) => a.prefix.localeCompare(b.prefix, 'ru', {numeric:true}) || a.oldNum - b.oldNum);
+    S.plan = {renames, edits, newRef, start, ms};
+    S.out = {bytes, text};
+    log(edits.length ? 'ok' : 'info', `Расчёт: групп ${S.selected.size}, переименований ${renames.length}, изменённых секций ${edits.length}; проверки XML, структуры и кодировки пройдены (${ms} мс)`);
+    renderAll();
+    setButtons(true);
+    if(initial && S.autoPending){
+      S.autoPending = false;
+      if(renames.length){ downloadXml(true); if($('autoCsv').checked) setTimeout(() => downloadCsv(true), 600); }
+      else log('info', 'Автоскачивание не выполнено: изменений нет.');
+    }
+  }catch(e){
+    log('error', e.message);
+    showMsg('error', 'Ошибка: ' + e.message);
+    $('status').textContent = 'Скачивание недоступно';
+  }
+}
+$('start').addEventListener('input', () => { if(S.parts.length) computeSoon(); });
+
+/* ---------- отображение ---------- */
+function showMsg(cls, t){ const m = $('message'); m.className = 'msg ' + cls; m.textContent = t; }
+
+function renderAll(){
+  const P = S.plan;
+  const uniq = new Set(S.parts.filter(p => p.ref).map(p => p.ref)).size;
+  const ns = S.parts.filter(p => p.status !== 'ok' && !p.selfClosed);
+  $('stats').innerHTML = [
+    [fmtN(S.parts.length), 'секций в схеме'], [fmtN(uniq), 'уникальных RefDes'],
+    [`${S.selected.size} / ${S.groups.size}`, 'выбрано групп'], [fmtN(P.renames.length), 'переименовано обозначений'],
+    [fmtN(P.edits.length), 'изменено секций'], [fmtN(ns.length), 'не перенумеровываются'],
+    [S.enc.name.toUpperCase() + (S.enc.bomLen ? ' + BOM' : ''), 'кодировка (сохраняется)']
+  ].map(([b, s], i) => `<div class="stat${i === 6 ? ' enc' : ''}" title="${esc(b)}"><b>${esc(b)}</b><span>${s}</span></div>`).join('');
+  showMsg(P.renames.length ? 'warn' : 'ok', P.renames.length
+    ? `Будет переименовано ${P.renames.length} обозначений в ${new Set(P.renames.map(r => r.prefix)).size} группах. Подробности — на вкладках ниже.`
+    : 'Пропусков в выбранных группах нет: номера уже последовательны.');
+  $('status').textContent = P.renames.length ? `Готово к скачиванию · проверка за ${P.ms} мс` : 'Изменений нет';
+
+  // Сводка
+  const groups = [...S.groups.values()].sort((a, b) => a.prefix.localeCompare(b.prefix, 'ru', {numeric:true}));
+  $('tSum').innerHTML = groups.map(g => {
+    const sel = S.selected.has(g.prefix);
+    return `<tr class="${g.renamed ? 'chg' : sel ? '' : 'skip'}"><td><b>${pLabel(g.prefix)}</b>${sel ? '' : ' <span class="badge">не выбрана</span>'}${g.port ? '<span class="badge">порт</span>' : ''}</td>
+      <td class="num">${g.sections}</td><td class="num">${g.unique}</td><td>${esc(g.prefix + g.min)}…${esc(g.prefix + g.max)}</td>
+      <td class="num">${g.gaps || ''}</td><td class="num">${g.renamed || ''}</td><td class="new">${sel ? esc(g.prefix + g.newMin) + '…' + esc(g.prefix + g.newMax) : '—'}</td></tr>`;
+  }).join('');
+  $('cSum').textContent = groups.length;
+
+  // Фильтры групп в таблицах
+  const opts = '<option value="">Все группы</option>' + groups.map(g => `<option value="${esc(g.prefix)}">${esc(g.prefix)}${g.script && g.script !== 'лат.' ? ' (' + g.script + ')' : ''}</option>`).join('');
+  for(const id of ['rGroup', 'dGroup']){ const v = $(id).value; $(id).innerHTML = opts; $(id).value = S.groups.has(v) ? v : ''; }
+  $('cRen').textContent = P.renames.length;
+  $('cDet').textContent = P.edits.length;
+  $('cNst').textContent = ns.length;
+  $('tNst').innerHTML = ns.map(p => `<tr><td class="num">${p.line}</td><td class="mono">${esc(p.ref || '(пусто)')}</td><td>${esc(REASON[p.status])}</td><td class="num">${esc(p.cpart)}</td><td>${esc(p.value)}</td><td>${esc(p.comp)}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Нет</td></tr>';
+  renderRen(true); renderDet(true);
+}
+const REASON = {empty:'пустое обозначение', nonstd:'нестандартный формат (иерархия, суффикс, символы)', leadzero:'ведущие нули в номере', range:'номер вне диапазона 1…999999999', entity:'номер записан XML-сущностями'};
+
+let renLimit = PAGE, detLimit = PAGE;
+function renderRen(reset){
+  if(!S.plan) return;
+  if(reset) renLimit = PAGE;
+  const f = $('rFilter').value.trim().toLowerCase(), g = $('rGroup').value;
+  const rows = S.plan.renames.filter(r => (!g || r.prefix === g) && (!f || r.oldRef.toLowerCase().includes(f) || r.newRef.toLowerCase().includes(f)));
+  $('tRen').innerHTML = rows.slice(0, renLimit).map(r => `<tr class="chg"><td>${pLabel(r.prefix)}</td><td class="mono">${esc(r.oldRef)}</td><td class="mono new">${esc(r.newRef)}</td><td class="num">${r.count}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Изменений нет</td></tr>';
+  $('rMore').classList.toggle('hidden', rows.length <= renLimit);
+  $('rInfo').textContent = `показано ${Math.min(rows.length, renLimit)} из ${rows.length}`;
+}
+function renderDet(reset){
+  if(!S.plan) return;
+  if(reset) detLimit = PAGE;
+  const f = $('dFilter').value.trim().toLowerCase(), g = $('dGroup').value, mode = $('dMode').value, nr = S.plan.newRef;
+  const rows = S.parts.filter(p => {
+    const ch = nr.has(p);
+    if(mode === 'chg' && !ch) return false;
+    if(mode === 'skip' && ch) return false;
+    if(g && p.prefix !== g) return false;
+    if(f && !(`${p.ref} ${nr.get(p) || ''} ${p.value} ${p.comp}`.toLowerCase().includes(f))) return false;
+    return true;
+  });
+  $('tDet').innerHTML = rows.slice(0, detLimit).map(p => {
+    const n = nr.get(p);
+    return `<tr class="${n ? 'chg' : p.status !== 'ok' ? 'bad' : 'skip'}"><td class="num">${p.idx}</td><td class="num">${p.line}</td><td>${pLabel(p.prefix)}</td><td class="mono">${esc(p.ref)}</td><td class="mono new">${n ? esc(n) : '—'}</td><td class="num">${esc(p.cpart)}</td><td>${esc(p.value)}</td><td>${esc(p.comp)}</td><td class="num">${p.byte != null ? fmtN(p.byte) : ''}</td></tr>`;
+  }).join('') || '<tr><td colspan="9" class="muted">Нет строк для показа</td></tr>';
+  $('dMore').classList.toggle('hidden', rows.length <= detLimit);
+  $('dInfo').textContent = `показано ${Math.min(rows.length, detLimit)} из ${rows.length}`;
+}
+$('rFilter').oninput = () => renderRen(true); $('rGroup').onchange = () => renderRen(true);
+$('dFilter').oninput = () => renderDet(true); $('dGroup').onchange = () => renderDet(true); $('dMode').onchange = () => renderDet(true);
+$('rMore').querySelector('button').onclick = () => { renLimit += PAGE; renderRen(); };
+$('dMore').querySelector('button').onclick = () => { detLimit += PAGE; renderDet(); };
+
+function renderLog(){
+  const lv = $('lLevel').value;
+  const rows = S.log.filter(l => !lv || l.level === 'warn' || l.level === 'error');
+  $('tLog').innerHTML = rows.map(l => `<div class="${l.level}"><span class="t">${l.t}</span>${esc(l.msg)}</div>`).join('') || '<div class="muted">Записей нет</div>';
+  $('cLog').textContent = S.log.length;
+}
+$('lLevel').onchange = renderLog;
+$('lCopy').onclick = () => { navigator.clipboard?.writeText(logText()).then(() => log('info', 'Журнал скопирован в буфер обмена'), () => log('warn', 'Браузер запретил доступ к буферу обмена: используйте «Журнал TXT»')); };
+
+function switchTab(t){
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
+  document.querySelectorAll('[data-pane]').forEach(p => p.classList.toggle('hidden', p.dataset.pane !== t));
+}
+$('tabs').onclick = e => { const b = e.target.closest('.tab'); if(b) switchTab(b.dataset.tab); };
+
+/* =====================================================================
+   СКАЧИВАНИЕ (локально через Blob)
+   ===================================================================== */
+function setButtons(on, keepLog){
+  const has = on && S.plan;
+  $('dlXml').disabled = !(has && S.plan.renames.length);
+  $('dlCsv').disabled = !has;
+  $('dlLogCsv').disabled = !has;
+  $('dlLogTxt').disabled = !S.log.length;
+}
+function downloadBlob(data, name, type){
+  const url = URL.createObjectURL(new Blob([data], {type}));
+  const a = document.createElement('a');
+  a.href = url; a.download = name; a.style.display = 'none';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+const csvCell = v => { v = String(v ?? ''); return /[;"\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+const csvBytes = rows => new TextEncoder().encode('\uFEFF' + rows.map(r => r.map(csvCell).join(';')).join('\r\n') + '\r\n');
+
+function downloadXml(auto){
+  if(!S.out || !S.plan.renames.length) return;
+  const name = baseName() + '_RefDes_fixed.dchxml';
+  downloadBlob(S.out.bytes, name, 'application/xml');
+  log('ok', `${auto ? 'Автоскачивание' : 'Скачан'}: ${name} (${fmtN(S.out.bytes.length)} байт, ${S.enc.name.toUpperCase()}${S.enc.bomLen ? ' + BOM' : ''})`);
+}
+function downloadCsv(auto){
+  if(!S.plan) return;
+  const name = baseName() + '_RefDes_changes.csv';
+  downloadBlob(csvBytes([['Группа', 'Старое обозначение', 'Новое обозначение', 'Число секций'], ...S.plan.renames.map(r => [r.prefix, r.oldRef, r.newRef, r.count])]), name, 'text/csv;charset=utf-8');
+  log('ok', `${auto ? 'Автоскачивание' : 'Скачан'}: ${name}`);
+}
+function downloadLogCsv(){
+  const nr = S.plan.newRef, name = baseName() + '_RefDes_log.csv';
+  const rows = S.parts.filter(p => nr.has(p) || p.status !== 'ok').map(p => [p.idx, p.line, p.prefix || '', p.ref, nr.get(p) || '', nr.has(p) ? 'изменено' : REASON[p.status] || '', p.cpart, p.value, p.comp, p.byte ?? '']);
+  downloadBlob(csvBytes([['№ секции', 'Строка', 'Группа', 'Было', 'Стало', 'Статус', 'ComponentPart', 'Value', 'Компонент', 'Смещение, байт'], ...rows]), name, 'text/csv;charset=utf-8');
+  log('ok', 'Скачан: ' + name);
+}
+function logText(){
+  const L = [`DipTrace RefDes Repair ${VERSION}`, `Файл: ${S.file ? S.file.name : '—'}`, ''];
+  S.log.forEach(l => L.push(`[${l.t}] ${l.level.toUpperCase().padEnd(5)} ${l.msg}`));
+  if(S.plan && S.plan.edits.length){
+    L.push('', 'Подробный лог замен (секция, строка, было -> стало):');
+    S.parts.filter(p => S.plan.newRef.has(p)).forEach(p => L.push(`  #${p.idx}\tстрока ${p.line}\t${p.ref} -> ${S.plan.newRef.get(p)}\t${p.value}\t${p.comp}`));
+  }
+  return L.join('\r\n') + '\r\n';
+}
+$('dlXml').onclick = () => downloadXml(false);
+$('dlCsv').onclick = () => downloadCsv(false);
+$('dlLogCsv').onclick = downloadLogCsv;
+$('dlLogTxt').onclick = () => { downloadBlob(new TextEncoder().encode('\uFEFF' + logText()), (S.file ? baseName() : 'diptrace') + '_RefDes_log.txt', 'text/plain;charset=utf-8'); };
+
+/* ---------- выбор файла ---------- */
+$('pick').onclick = e => { e.stopPropagation(); $('file').click(); };
+$('drop').onclick = () => $('file').click();
+$('file').addEventListener('change', e => loadFile(e.target.files[0]));
+['dragenter', 'dragover'].forEach(t => $('drop').addEventListener(t, e => { e.preventDefault(); $('drop').classList.add('over'); }));
+['dragleave', 'drop'].forEach(t => $('drop').addEventListener(t, e => { e.preventDefault(); $('drop').classList.remove('over'); }));
+$('drop').addEventListener('drop', e => loadFile(e.dataTransfer.files[0]));
+// Файл, брошенный мимо зоны, не должен открываться браузером вместо утилиты.
+['dragover', 'drop'].forEach(t => window.addEventListener(t, e => e.preventDefault()));
+$('encSel').onchange = () => { if(S.file){ S.autoPending = false; processFile(false); } };
+
+$('ver').textContent = VERSION;
+loadPrefs();
+let th = 'light'; try{ th = localStorage.getItem(LS + 'theme') || 'light'; }catch{}
+setTheme(th);
+</script>
+</body>
+</html>
